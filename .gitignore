@@ -1,6 +1,2 @@
-/data/vending.csv
-/data/footfall.csv
-/data/interactions.csv
-/data/nav_events.csv
-/data/robots.csv
-/data/telemetry.csv
+/data/
+/backend/.venv/
