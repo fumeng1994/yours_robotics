@@ -1,0 +1,46 @@
+<main class="container">
+    <h1>Robot Fleet Status</h1>
+
+    @if (errorMessage) {
+        <div class="error">
+            {{ errorMessage }}
+        </div>
+    }
+
+    @if (robots$ | async; as robotsList) {
+        @if (robotsList.length > 0) {
+            <div class="table-wrapper">
+                <table class="styled-table">
+                    <thead>
+                        <tr>
+                            <th>Robot ID</th>
+                            <th>Model</th>
+                            <th>Home Zone</th>
+                            <th>Firmware Version</th>
+                            <th>Deploy Date</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        @for (robot of robotsList; track robot.robot_id) {
+                            <tr (click)="goToRobot(robot.robot_id)" class="clickable-row">
+                                <td><strong>{{ robot.robot_id }}</strong></td>
+                                <td>{{ robot.model }}</td>
+                                <td><span class="badge">{{ robot.home_zone }}</span></td>
+                                <td>{{ robot.firmware_version }}</td>
+                                <td>{{ robot.deploy_date }}</td>
+                            </tr>
+                        }
+                    </tbody>
+                </table>
+            </div>
+        } @else if (!errorMessage) {
+            <div class="no-data-placeholder">
+                <p>No active robots found in the fleet registry.</p>
+            </div>
+        }
+    } @else if (!errorMessage) {
+        <div class="loading">
+            Loading robot data...
+        </div>
+    }
+</main>

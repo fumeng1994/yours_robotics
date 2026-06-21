@@ -1,2 +1,5 @@
-/data/
 /backend/.venv/
+/data/
+/frontend/.angular/
+/frontend/node_modules/
+/frontend/.vscode

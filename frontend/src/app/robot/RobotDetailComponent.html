@@ -1,0 +1,52 @@
+<app-robot-event></app-robot-event>
+
+<main class="container">
+    <div class="header-actions">
+        <a routerLink="/" class="back-btn">← Back to Fleet</a>
+    </div>
+
+    <h1>Telemetry Log: {{ robotId }}</h1>
+
+    @if (errorMessage) {
+    <div class="error">{{ errorMessage }}</div>
+    }
+
+    @if (robotDetails$ | async; as details) {
+    <div class="table-wrapper">
+        <table class="styled-table">
+            <thead>
+                <tr>
+                    <th>Timestamp</th>
+                    <th>State</th>
+                    <th>Battery</th>
+                    <th>Speed (m/s)</th>
+                    <th>Coordinates (X, Y)</th>
+                    <th>Zone</th>
+                </tr>
+            </thead>
+            <tbody>
+                @for (log of details; track log.timestamp) {
+                <tr>
+                    <td>{{ log.timestamp }}</td>
+                    <td>
+                        <span class="state-badge" [ngClass]="log.state">
+                            {{ log.state }}
+                        </span>
+                    </td>
+                    <td>
+                        <strong [style.color]="log.battery_pct < 50 ? '#e74c3c' : '#2ecc71'">
+                            {{ log.battery_pct }}%
+                        </strong>
+                    </td>
+                    <td>{{ log.speed_mps }} m/s</td>
+                    <td>({{ log.x }}, {{ log.y }})</td>
+                    <td><span class="badge">{{ log.zone }}</span></td>
+                </tr>
+                }
+            </tbody>
+        </table>
+    </div>
+    } @else if (!errorMessage) {
+    <div class="loading">Fetching live tracking parameters...</div>
+    }
+</main>

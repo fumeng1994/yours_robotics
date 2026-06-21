@@ -1,0 +1,28 @@
+{
+  "fleet": {
+    "total_robots": 0,
+    "active_robots": 0
+  },
+  "vending": {
+    "total_revenue_sgd": 0.0,
+    "transactions_counted": 0
+  },
+  "qr": {
+    "total_scans": 0,
+    "conversions": 0,
+    "conversion_rate": 0.0
+  },
+  "metric_definitions": {
+    "availability": "REPLACE: your one-line definition of availability/uptime",
+    "active_robots": "REPLACE: your one-line definition of an active robot"
+  },
+  "data_quality": {
+    "anomalies": [
+      {
+        "type": "REPLACE_short_label",
+        "entity": "which robot / zone / file this affects",
+        "note": "what is wrong and how you handled it"
+      }
+    ]
+  }
+}
