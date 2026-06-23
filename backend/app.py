@@ -5,80 +5,115 @@ import pandas as pd
 app = Flask(__name__)
 CORS(app)
 
-# 1. Load Data into Memory
-df_robots = pd.read_csv('../data/robots.csv')
-df_telemetry = pd.read_csv('../data/telemetry.csv')
-df_interactions = pd.read_csv('../data/interactions.csv')
-df_vending = pd.read_csv('../data/vending.csv')
+# --- 1. Data Ingestion ---
+# Note: Paths assume you are running this from a directory alongside the data folder (e.g., src/)
+df_robots = pd.read_csv("../data/robots.csv")
+df_telemetry = pd.read_csv("../data/telemetry.csv")
+df_interactions = pd.read_csv("../data/interactions.csv")
+df_vending = pd.read_csv("../data/vending.csv")
+df_nav_events = pd.read_csv("../data/nav_events.csv")
 
-# 2. Pre-process and Clean Telemetry Data (Run once on startup)
-# Normalize the state strings to lowercase (fixes 'NAVIGATING' vs 'navigating')
-if 'state' in df_telemetry.columns:
-    df_telemetry['state'] = df_telemetry['state'].str.lower()
+# --- 2. Global Data Cleaning ---
+# Normalize text casing and string formatting anomalies
+if "state" in df_telemetry.columns:
+    df_telemetry["state"] = df_telemetry["state"].str.lower()
+if "zone" in df_telemetry.columns:
+    df_telemetry["zone"] = df_telemetry["zone"].str.replace("_", "-", regex=False)
 
-# Normalize zone strings to use dashes instead of underscores (fixes 'PDD_A' vs 'PDD-A')
-if 'zone' in df_telemetry.columns:
-    df_telemetry['zone'] = df_telemetry['zone'].str.replace('_', '-', regex=False)
+# Strip hidden whitespace from master robot registry
+if "robot_id" in df_robots.columns:
+    df_robots["robot_id"] = df_robots["robot_id"].astype(str).str.strip()
 
-# --- Routes ---
 
-@app.route('/api/robots', methods=['GET'])
+# --- 3. API Routes ---
+
+@app.route("/api/robots", methods=["GET"])
 def get_robots():
     """Returns the fleet baseline overview."""
-    return jsonify(df_robots.to_dict(orient='records'))
+    return jsonify(df_robots.to_dict(orient="records"))
 
-@app.route('/api/robot/<robot_id>', methods=['GET'])
+
+@app.route("/api/robot/<robot_id>", methods=["GET"])
 def get_robot_telemetry(robot_id):
-    """
-    Returns all telemetry data for a specific robot.
-    Example usage: GET /api/robot/R-10
-    """
-    # Filter the telemetry dataframe for the requested robot_id
-    robot_data = df_telemetry[df_telemetry['robot_id'] == robot_id]
+    """Returns all telemetry data for a specific robot."""
+    clean_id = str(robot_id).strip()
     
-    # Handle the case where the robot ID doesn't exist or has no data
+    # Strip whitespace during comparison to avoid false negatives
+    robot_data = df_telemetry[df_telemetry["robot_id"].astype(str).str.strip() == clean_id]
+    
     if robot_data.empty:
-        return jsonify({"error": f"No telemetry data found for robot {robot_id}"}), 404
+        return jsonify({"error": f"No telemetry data found for robot {clean_id}"}), 404
         
-    # Convert the filtered data to a JSON-friendly list of dictionaries
-    payload = robot_data.to_dict(orient='records')
-    
-    return jsonify(payload)
+    return jsonify(robot_data.to_dict(orient="records"))
 
-@app.route('/api/robot/<robot_id>/event', methods=['GET'])
+
+@app.route("/api/robot/<robot_id>/event", methods=["GET"])
 def get_robot_events(robot_id):
     """
-    Returns a unified, chronological timeline of interactions and vending events.
+    Returns a unified, chronological timeline of interactions, vending, 
+    nav_events, and telemetry.
     """
-    # 1. Filter both datasets for the requested robot
-    interactions = df_interactions[df_interactions['robot_id'] == robot_id].copy()
-    vending = df_vending[df_vending['robot_id'] == robot_id].copy()
+    clean_id = str(robot_id).strip()
+
+    # 1. Filter standard datasets (stripping whitespace)
+    interactions = df_interactions[df_interactions["robot_id"].astype(str).str.strip() == clean_id].copy()
+    vending = df_vending[df_vending["robot_id"].astype(str).str.strip() == clean_id].copy()
+    nav_events = df_nav_events[df_nav_events["robot_id"].astype(str).str.strip() == clean_id].copy()
+    telemetry = df_telemetry[df_telemetry["robot_id"].astype(str).str.strip() == clean_id].copy()
     
-    # 2. Tag the data so the Angular frontend can differentiate the event types
-    interactions['event_category'] = 'interaction'
-    vending['event_category'] = 'vending'
+    # 2. Tag categories
+    interactions["event_category"] = "interaction"
+    vending["event_category"] = "vending"
+    nav_events["event_category"] = "nav_event"
+    telemetry["event_category"] = "telemetry"
+        
+    # 3. Safely Parse Mixed-Format Dates BEFORE combining
+    if not interactions.empty:
+        interactions["timestamp"] = pd.to_datetime(interactions["timestamp"], format="mixed", errors="coerce")
+    if not vending.empty:
+        vending["timestamp"] = pd.to_datetime(vending["timestamp"], format="mixed", errors="coerce")
+    if not nav_events.empty:
+        nav_events["timestamp"] = pd.to_datetime(nav_events["timestamp"], format="mixed", errors="coerce")
+    if not telemetry.empty:
+        telemetry["timestamp"] = pd.to_datetime(telemetry["timestamp"], format="mixed", errors="coerce")
     
-    # 3. Concatenate the two DataFrames into one list
-    combined = pd.concat([interactions, vending], ignore_index=True)
+    # 4. Combine into a single DataFrame
+    combined = pd.concat([interactions, vending, nav_events, telemetry], ignore_index=True)
     
-    # Handle the edge case where a robot has exactly zero events
     if combined.empty:
         return jsonify([])
         
-    # 4. Sort chronologically (Earliest to Latest)
-    # Convert string timestamps to actual datetime objects to ensure perfect sorting
-    combined['timestamp'] = pd.to_datetime(combined['timestamp'])
-    combined = combined.sort_values(by='timestamp', ascending=True)
+    # 5. Sort chronologically
+    combined = combined.dropna(subset=["timestamp"]) 
+    combined = combined.sort_values(by="timestamp", ascending=True)
+    combined["timestamp"] = combined["timestamp"].dt.strftime("%Y-%m-%dT%H:%M:%SZ")
     
-    # Convert datetime back to a standard ISO string for clean JSON serialization
-    combined['timestamp'] = combined['timestamp'].dt.strftime('%Y-%m-%dT%H:%M:%SZ')
-    
-    # 5. Clean up the data for JSON
-    # When combining different schemas, Pandas fills missing columns with NaN. 
-    # We must convert NaN to None so it renders as `null` in JSON rather than breaking.
+    # Convert NaNs to None for clean JSON handling
     combined = combined.where(pd.notnull(combined), None)
     
-    return jsonify(combined.to_dict(orient='records'))
+    # 6. Restructure into the target 'meta' JSON schema
+    raw_records = combined.to_dict(orient="records")
+    formatted_timeline = []
+    
+    for record in raw_records:
+        robot_id_val = record.pop("robot_id", None)
+        event_cat_val = record.pop("event_category", None)
+        timestamp_val = record.pop("timestamp", None)
+        
+        if isinstance(robot_id_val, str):
+            robot_id_val = robot_id_val.strip()
+            
+        meta_data = {key: value for key, value in record.items() if value is not None}
+        
+        formatted_timeline.append({
+            "robot_id": robot_id_val,
+            "event_category": event_cat_val,
+            "timestamp": timestamp_val,
+            "meta": meta_data
+        })
+        
+    return jsonify(formatted_timeline)
 
-if __name__ == '__main__':
+
+if __name__ == "__main__":
     app.run(debug=True, port=5000)
