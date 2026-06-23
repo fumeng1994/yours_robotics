@@ -4,4 +4,5 @@ export interface RobotMasterModel {
   home_zone: string;
   model: string;
   robot_id: string;
+  uptime_pct: number;
 }

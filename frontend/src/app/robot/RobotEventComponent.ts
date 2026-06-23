@@ -18,10 +18,10 @@ interface RobotEvent {
     robot_id: string;
     timestamp: string;
     meta: Record<string, any>;
-    // New API fields
     error?: boolean;
     errorClass?: string;
     errorColumn?: string;
+    anomally?: string;
 }
 
 @Component({
@@ -56,6 +56,7 @@ export class RobotEventComponent implements OnInit {
     activeView: 'full' | number = 'full';
     errorSummary$!: Observable<RobotEvent[]>;
     topErrors$!: Observable<ErrorAggregate[]>;
+    telemetryAnomalies$ = new BehaviorSubject<RobotEvent[]>([]);
 
     // 1. ADD FILTER & SORT STATE VARIABLES
     searchTerm$ = new BehaviorSubject<string>('');
@@ -90,6 +91,17 @@ export class RobotEventComponent implements OnInit {
                 error: (err) => {
                     console.error(err);
                     this.errorMessage = 'Failed to load timeline events.';
+                }
+            });
+
+        this.http.get(`http://localhost:5000/api/robot/${this.robotId}/anomally`, { responseType: 'text' })
+            .subscribe({
+                next: (rawText) => {
+                    const sanitized = rawText.replace(/:\s*NaN\b/g, ': null');
+                    this.telemetryAnomalies$.next(JSON.parse(sanitized));
+                },
+                error: (err) => {
+                    console.error('Failed to load anomalies:', err);
                 }
             });
 
@@ -417,9 +429,9 @@ export class RobotEventComponent implements OnInit {
     sortEventList(column: string) {
         const current = this.eventSortConfig$.value;
         if (current.column === column) {
-            this.eventSortConfig$.next({ 
-                column, 
-                direction: current.direction === 'asc' ? 'desc' : 'asc' 
+            this.eventSortConfig$.next({
+                column,
+                direction: current.direction === 'asc' ? 'desc' : 'asc'
             });
         } else {
             const defaultDir = column === 'timestamp' ? 'desc' : 'asc';

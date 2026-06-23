@@ -21,6 +21,7 @@
                     <th>Home Zone</th>
                     <th>Firmware Version</th>
                     <th>Deploy Date</th>
+                    <th>Uptime</th>
                 </tr>
             </thead>
             <tbody>
@@ -31,6 +32,7 @@
                     <td><span class="badge">{{ robot.home_zone }}</span></td>
                     <td>{{ robot.firmware_version }}</td>
                     <td>{{ robot.deploy_date }}</td>
+                    <td>{{ robot.uptime_pct }}%</td>
                 </tr>
                 }
             </tbody>

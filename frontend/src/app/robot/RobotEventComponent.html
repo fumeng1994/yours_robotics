@@ -180,7 +180,7 @@
             <button class="tab-btn" [class.active]="(selectedCategory$ | async) === 'interaction'"
                 (click)="selectEventCategory('interaction')">Interaction</button>
             <button class="tab-btn" [class.active]="(selectedCategory$ | async) === 'vending'"
-                (click)="selectEventCategory('vending')">Operations</button>
+                (click)="selectEventCategory('vending')">Vendibng</button>
             <button class="tab-btn" [class.active]="(selectedCategory$ | async) === 'nav_event'"
                 (click)="selectEventCategory('nav_event')">Nav Events</button>
             <button class="tab-btn" [class.active]="(selectedCategory$ | async) === 'telemetry'"
@@ -216,6 +216,48 @@
             </table>
         </div>
     </div>
+
+
+@if (telemetryAnomalies$ | async; as anomalies) {
+        <div class="summary-box anomaly-log-box">
+            <div class="summary-header anomaly-header">
+                <div class="header-title">
+                    <span class="icon-indicator">⚠️</span> Telemetry anomally (missed ping for 60minutes)
+                </div>
+                <div class="error-count">{{ anomalies.length }} instances</div>
+            </div>
+
+            <div class="table-container">
+                <table class="error-table">
+                    <thead>
+                        <tr>
+                            <th style="width: 20%;">Time</th>
+                            <th style="width: 15%;">Robot ID</th>
+                            <th style="width: 15%;">Anomaly</th>
+                            <th style="width: 50%;">Event Details (Meta)</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        <tr *ngFor="let anomaly of anomalies">
+                            <td class="time-col">{{ anomaly.timestamp | date:'MMM d, h:mm:ss a' }}</td>
+                            <td class="category-col">{{ anomaly.robot_id }}</td>
+                            <td>
+                                <span class="badge anomaly-badge">{{ anomaly.anomally }}</span>
+                            </td>
+                            <td class="meta-col" [title]="getMetaSummary(anomaly.meta)">
+                                {{ getMetaSummary(anomaly.meta) }}
+                            </td>
+                        </tr>
+                        
+                        <tr *ngIf="anomalies.length === 0">
+                            <td colspan="4" class="empty-state">No anomalies detected for this robot.</td>
+                        </tr>
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    }
+
 
 
 </div>

@@ -443,3 +443,27 @@
         }
     }
 }
+
+
+/* --- Telemetry Anomaly Log Styles --- */
+
+.anomaly-log-box {
+    border-color: #f6ad55;
+    box-shadow: 0 4px 12px rgba(237, 137, 54, 0.08);
+
+    .anomaly-header {
+        background: rgba(237, 137, 54, 0.1);
+        color: #dd6b20;
+        border-bottom: 1px solid #f6ad55;
+        
+        .error-count {
+            background: #ed8936;
+        }
+    }
+
+    .anomaly-badge {
+        background-color: #feebc8;
+        color: #c05621;
+        border: 1px solid #fbd38d;
+    }
+}
