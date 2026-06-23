@@ -32,7 +32,7 @@
                     <td><span class="badge">{{ robot.home_zone }}</span></td>
                     <td>{{ robot.firmware_version }}</td>
                     <td>{{ robot.deploy_date }}</td>
-                    <td>{{ robot.uptime_pct }}%</td>
+                    <td>{{ robot.uptime_pct }} @if (robot.telemetry_anomally) {⚠️}</td>
                 </tr>
                 }
             </tbody>

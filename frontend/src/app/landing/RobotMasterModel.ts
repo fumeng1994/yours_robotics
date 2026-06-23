@@ -5,4 +5,5 @@ export interface RobotMasterModel {
   model: string;
   robot_id: string;
   uptime_pct: number;
+  telemetry_anomally: boolean;
 }
