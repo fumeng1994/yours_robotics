@@ -1,52 +1,280 @@
-<div class="container header-actions">
-    <a routerLink="/" class="back-btn">← Back to Fleet</a>
-</div>
+<div class="dashboard-container">
+    <div class="navigation-row">
+        <a routerLink="/" class="btn-back">
+            ← Back to Fleet
+        </a>
+    </div>
 
-<app-robot-event></app-robot-event>
 
-<!-- <main class="container">
-    <h1>Telemetry Log: {{ robotId }}</h1>
+    <div class="header-row">
+        <h2>Autonomous Operations Timeline: {{ robotId }}</h2>
+
+        <div class="zoom-controls">
+            <button class="btn-zoom" [class.active]="activeView === 'full'" (click)="zoomToFull()">
+                Full 14-Day View
+            </button>
+
+            <div class="day-scroll">
+                <button *ngFor="let day of availableDays" class="btn-day" [class.active]="activeView === day"
+                    (click)="zoomToDay(day)">
+                    {{ day | date:'MMM d' }}
+                </button>
+            </div>
+        </div>
+    </div>
 
     @if (errorMessage) {
-    <div class="error">{{ errorMessage }}</div>
+    <div class="error-banner">{{ errorMessage }}</div>
     }
 
-    @if (robotDetails$ | async; as details) {
-    <div class="table-wrapper">
-        <table class="styled-table">
-            <thead>
-                <tr>
-                    <th>Timestamp</th>
-                    <th>State</th>
-                    <th>Battery</th>
-                    <th>Speed (m/s)</th>
-                    <th>Coordinates (X, Y)</th>
-                    <th>Zone</th>
-                </tr>
-            </thead>
-            <tbody>
-                @for (log of details; track log.timestamp) {
-                <tr>
-                    <td>{{ log.timestamp }}</td>
-                    <td>
-                        <span class="state-badge" [ngClass]="log.state">
-                            {{ log.state }}
-                        </span>
-                    </td>
-                    <td>
-                        <strong [style.color]="log.battery_pct < 50 ? '#e74c3c' : '#2ecc71'">
-                            {{ log.battery_pct }}%
-                        </strong>
-                    </td>
-                    <td>{{ log.speed_mps }} m/s</td>
-                    <td>({{ log.x }}, {{ log.y }})</td>
-                    <td><span class="badge">{{ log.zone }}</span></td>
-                </tr>
-                }
-            </tbody>
-        </table>
+    @if (topErrors$ | async; as topErrors) {
+    <div class="top-errors-container" *ngIf="topErrors.length > 0">
+        <div class="top-errors-header">
+            <span class="icon-indicator">🔥</span> Most Frequent Errors
+        </div>
+        <div class="top-errors-grid">
+            <div class="top-error-card" *ngFor="let err of topErrors; let i = index">
+                <div class="rank-badge">#{{ i + 1 }}</div>
+                <div class="card-content">
+                    <div class="err-count">{{ err.count }} occurrences</div>
+                    <div class="err-detail">
+                        <strong>Sub-System:</strong> <span class="capitalize">{{ err.category }}</span>
+                    </div>
+                    <div class="err-detail">
+                        <strong>Type:</strong> {{ err.errorColumn }}
+                    </div>
+                    <div class="err-detail">
+                        <strong>Error:</strong>
+                        <span class="badge error-badge">{{ err.errorClass }}</span>
+                    </div>
+                </div>
+            </div>
+        </div>
     </div>
-    } @else if (!errorMessage) {
-    <div class="loading">Fetching live tracking parameters...</div>
     }
-</main> -->
+
+
+    @if (telemetryAnomalies$ | async; as anomalies) {
+    <div class="summary-box anomaly-log-box">
+        <div class="summary-header anomaly-header">
+            <div class="header-title">
+                <span class="icon-indicator">⚠️</span> Telemetry anomally (missed ping for 60minutes)
+            </div>
+            <div class="error-count">{{ anomalies.length }} instances</div>
+        </div>
+
+        <div class="table-container">
+            <table class="error-table">
+                <thead>
+                    <tr>
+                        <th style="width: 20%;">Time</th>
+                        <th style="width: 15%;">Robot ID</th>
+                        <th style="width: 15%;">Anomaly</th>
+                        <th style="width: 50%;">Event Details (Meta)</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    <tr *ngFor="let anomaly of anomalies">
+                        <td class="time-col">{{ anomaly.timestamp | date:'MMM d, h:mm:ss a':'UTC' }}</td>
+                        <td class="category-col">{{ anomaly.robot_id }}</td>
+                        <td>
+                            <span class="badge anomaly-badge">{{ anomaly.anomally }}</span>
+                        </td>
+                        <td class="meta-col" [title]="getMetaSummary(anomaly.meta)">
+                            {{ getMetaSummary(anomaly.meta) }}
+                        </td>
+                    </tr>
+
+                    <tr *ngIf="anomalies.length === 0">
+                        <td colspan="4" class="empty-state">No anomalies detected for this robot.</td>
+                    </tr>
+                </tbody>
+            </table>
+        </div>
+    </div>
+    }
+
+    <div class="breakdown-toggle-header" (click)="toggleBreakdown()">
+        <div class="header-title">
+            <span class="icon-indicator">📊</span> View Full Breakdown Logs & Charts
+        </div>
+        <button class="btn-toggle">
+            {{ isBreakdownOpen ? 'Hide Breakdown ▲' : 'Show Breakdown ▼' }}
+        </button>
+    </div>
+
+    @if (isBreakdownOpen) {
+    <div class="breakdown-content-wrapper">
+
+        <div class="summary-box event-log-box">
+            <div class="summary-header">
+                <div class="header-title">
+                    <span class="icon-indicator">🗄️</span> Complete Event Log
+                </div>
+            </div>
+
+            <div class="category-tabs">
+                <button class="tab-btn" [class.active]="(selectedCategory$ | async) === 'interaction'"
+                    (click)="selectEventCategory('interaction')">Interaction</button>
+                <button class="tab-btn" [class.active]="(selectedCategory$ | async) === 'vending'"
+                    (click)="selectEventCategory('vending')">Vending</button>
+                <button class="tab-btn" [class.active]="(selectedCategory$ | async) === 'nav_event'"
+                    (click)="selectEventCategory('nav_event')">Nav Events</button>
+                <button class="tab-btn" [class.active]="(selectedCategory$ | async) === 'telemetry'"
+                    (click)="selectEventCategory('telemetry')">Telemetry</button>
+            </div>
+
+            <div class="table-container">
+                <table class="error-table">
+                    <thead>
+                        <tr>
+                            <th (click)="sortEventList('timestamp')" class="sortable" style="width: 25%;">
+                                Time <span class="sort-icon">{{ getEventSortIcon('timestamp') }}</span>
+                            </th>
+                            <th (click)="sortEventList('robot_id')" class="sortable" style="width: 15%;">
+                                Robot ID <span class="sort-icon">{{ getEventSortIcon('robot_id') }}</span>
+                            </th>
+                            <th (click)="sortEventList('meta')" class="sortable" style="width: 60%;">
+                                Event Details (Meta) <span class="sort-icon">{{ getEventSortIcon('meta') }}</span>
+                            </th>
+                        </tr>
+                    </thead>
+                    <tbody *ngIf="categorizedEvents$ | async as catEvents">
+                        <tr *ngFor="let evt of catEvents">
+                            <td class="time-col">{{ evt.timestamp | date:'MMM d, h:mm:ss a':'UTC' }}</td>
+                            <td class="category-col">{{ evt.robot_id }}</td>
+                            <td class="meta-col" [title]="getMetaSummary(evt.meta)">{{ getMetaSummary(evt.meta) }}</td>
+                        </tr>
+                        <tr *ngIf="catEvents.length === 0">
+                            <td colspan="3" class="empty-state">No events recorded for this category in the selected
+                                timeframe.</td>
+                        </tr>
+                    </tbody>
+                </table>
+            </div>
+        </div>
+
+
+        @if (errorMessage) {
+        <div class="error-banner">{{ errorMessage }}</div>
+        }
+
+        @if (errorSummary$ | async; as totalErrors) {
+        <div class="summary-box" *ngIf="totalErrors.length > 0">
+
+            <div class="summary-header">
+                <div class="header-title">
+                    <span class="icon-indicator">📋</span> Error Log Summary
+                    <span class="error-count">{{ totalErrors.length }} incidents</span>
+                </div>
+                <div class="search-container">
+                    <input type="text" placeholder="Search Sub-system, Error Class, Trigger Column ..."
+                        (input)="onSearch($event)" class="error-search-input">
+                </div>
+            </div>
+
+            <div class="table-container">
+                <table class="error-table">
+                    <thead>
+                        <tr>
+                            <th (click)="sortBy('timestamp')" class="sortable">
+                                Time <span class="sort-icon">{{ getSortIcon('timestamp') }}</span>
+                            </th>
+                            <th (click)="sortBy('event_category')" class="sortable">
+                                Sub-System <span class="sort-icon">{{ getSortIcon('event_category') }}</span>
+                            </th>
+                            <th (click)="sortBy('errorClass')" class="sortable">
+                                Error Class <span class="sort-icon">{{ getSortIcon('errorClass') }}</span>
+                            </th>
+                            <th (click)="sortBy('errorColumn')" class="sortable">
+                                Trigger Column <span class="sort-icon">{{ getSortIcon('errorColumn') }}</span>
+                            </th>
+                            <th (click)="sortBy('meta')" class="sortable">
+                                Event Details <span class="sort-icon">{{ getSortIcon('meta') }}</span>
+                            </th>
+                        </tr>
+                    </thead>
+
+                    <tbody *ngIf="displayedErrors$ | async as displayedErrors">
+                        <tr *ngFor="let err of displayedErrors">
+                            <td class="time-col">{{ err.timestamp | date:'MMM d, h:mm:ss a':'UTC' }}</td>
+                            <td class="category-col">{{ err.event_category }}</td>
+                            <td><span class="badge error-badge">{{ err.errorClass || 'UNKNOWN' }}</span></td>
+                            <td class="column-col">{{ err.errorColumn || 'N/A' }}</td>
+                            <td class="meta-col" [title]="getMetaSummary(err.meta)">{{ getMetaSummary(err.meta) }}</td>
+                        </tr>
+
+                        <tr *ngIf="displayedErrors.length === 0">
+                            <td colspan="5" class="empty-state">No errors match your search criteria.</td>
+                        </tr>
+                    </tbody>
+                </table>
+            </div>
+        </div>
+        }
+        @if (errorMessage) {
+        <div class="error-banner">{{ errorMessage }}</div>
+        }
+
+        @if (errorConfig$ | async; as errConfig) {
+        <div class="track-box">
+            <div class="track-header error-track-header">
+                <span class="icon-indicator">⚠</span> System Errors
+            </div>
+            <div class="canvas-container">
+                <canvas baseChart [data]="errConfig" [options]="commonChartOptions" [type]="'scatter'"></canvas>
+            </div>
+        </div>
+        }
+
+        @if (interactionConfig$ | async; as intConfig) {
+        <div class="track-box">
+            <div class="track-header interaction-header">
+                <span class="icon-indicator">★</span> Interaction Events
+            </div>
+            <div class="canvas-container">
+                <canvas baseChart [data]="intConfig" [options]="commonChartOptions" [type]="'scatter'"></canvas>
+            </div>
+        </div>
+        }
+
+        @if (vendingConfig$ | async; as vendConfig) {
+        <div class="track-box">
+            <div class="track-header vending-header">
+                <span class="icon-indicator">■</span> Operations (Vending)
+            </div>
+            <div class="canvas-container">
+                <canvas baseChart [data]="vendConfig" [options]="commonChartOptions" [type]="'scatter'"></canvas>
+            </div>
+        </div>
+        }
+
+        @if (navConfig$ | async; as navConfig) {
+        <div class="track-box">
+            <div class="track-header nav-header">
+                <span class="icon-indicator">▲</span> Navigation Incidents
+            </div>
+            <div class="canvas-container">
+                <canvas baseChart [data]="navConfig" [options]="commonChartOptions" [type]="'scatter'"></canvas>
+            </div>
+        </div>
+        }
+
+        @if (telemetryConfig$ | async; as telemetryConfig) {
+        <div class="track-box">
+            <div class="track-header telemetry-header">
+                <span class="icon-indicator">◆</span> Diagnostics & Telemetry
+            </div>
+            <div class="canvas-container">
+                <canvas baseChart [data]="telemetryConfig" [options]="commonChartOptions" [type]="'scatter'"></canvas>
+            </div>
+        </div>
+        }
+
+    </div>
+    }
+
+
+
+
+</div>
