@@ -5,9 +5,7 @@ import pandas as pd
 app = Flask(__name__)
 CORS(app)
 
-# =====================================================================
-# IN-MEMORY DATA CACHES (Instant API Responses)
-# =====================================================================
+
 MEM_ROBOTS = []
 MEM_TELEMETRY = {}
 MEM_EVENTS = {}
@@ -28,7 +26,7 @@ def init_memory():
     df_vending = pd.read_csv("../data/vending.csv")
     df_nav_events = pd.read_csv("../data/nav_events.csv")
 
-    # --- 1. Global Data Cleaning ---
+    # Global Data Cleaning 
     if "state" in df_telemetry.columns:
         df_telemetry["state"] = df_telemetry["state"].str.lower()
     if "zone" in df_telemetry.columns:
@@ -38,7 +36,6 @@ def init_memory():
         if "robot_id" in df.columns:
             df["robot_id"] = df["robot_id"].astype(str).str.strip()
 
-    # Pre-parse dates natively to a temp column (_dt) to keep math fast
     for df in [df_telemetry, df_interactions, df_vending, df_nav_events]:
         df["_dt"] = pd.to_datetime(df["timestamp"], dayfirst=True, format="mixed", errors="coerce")
 
@@ -47,12 +44,10 @@ def init_memory():
     robot_ids = df_robots["robot_id"].unique()
     GAP_THRESHOLD = pd.Timedelta(minutes=61)
 
-    # =================================================================
-    # CACHE 1: Pre-calculate Anomalies Cache FIRST (Unbounded Dates)
-    # =================================================================
 
+    # CACHE 1: Pre-calculate Anomalies Cache FIRST (Unbounded Dates)
     full_tel = df_telemetry.dropna(subset=["_dt"]).sort_values(by="_dt")
-    # BOOT_TIME = pd.Timedelta(hours=8)
+
     DEPLOYMENT_DATE = pd.to_datetime("2026-06-01").date()
 
     for r_id in robot_ids:
@@ -63,15 +58,12 @@ def init_memory():
             gaps = r_tel[r_tel["time_diff"] > GAP_THRESHOLD].copy()
             
             if not gaps.empty:
-                # 1. Define the exact boot window for June 1st
-                # Any anomaly on June 1st before 8:15 AM is ignored
-                boot_limit = pd.to_datetime("2026-06-01 08:15:00")
-                
-                # 2. Only apply filter if the anomaly date IS June 1st
+
+                boot_limit = pd.to_datetime("2026-06-01 00:15:00")
+
                 is_june_1st = (gaps["_dt"].dt.date == DEPLOYMENT_DATE)
                 is_before_boot = (gaps["_dt"] <= boot_limit)
-                
-                # Keep anomalies that are NOT (June 1st AND before boot)
+
                 gaps = gaps[~(is_june_1st & is_before_boot)]
 
                 if not gaps.empty:
@@ -93,9 +85,7 @@ def init_memory():
                     
         MEM_ANOMALIES[r_id] = anoms
 
-    # =================================================================
     # CACHE 2: Pre-calculate Fleet Baseline (Uptime & Anomaly Flag)
-    # =================================================================
     TOTAL_WINDOW_SECONDS = 14 * 24 * 60 * 60 
     
     up_tel = df_telemetry[(df_telemetry["_dt"] >= start_date) & (df_telemetry["_dt"] < end_date)].dropna(subset=["_dt"]).sort_values(by="_dt")
@@ -104,8 +94,7 @@ def init_memory():
     raw_robots = df_robots.to_dict(orient="records")
     for robot in raw_robots:
         r_id = robot["robot_id"]
-        
-        # Implicit downtime
+
         r_tel = up_tel[up_tel["robot_id"] == r_id].copy()
         if not r_tel.empty:
             r_tel["time_diff"] = r_tel["_dt"].diff()
@@ -114,7 +103,6 @@ def init_memory():
         else:
             implicit_downtime_s = TOTAL_WINDOW_SECONDS
 
-        # Explicit downtime
         r_nav = up_nav[up_nav["robot_id"] == r_id]
         if not r_nav.empty:
             crit = r_nav[r_nav["event_type"].isin(["fault", "estop", "manual_takeover"])]
@@ -122,13 +110,10 @@ def init_memory():
         else:
             explicit_downtime_s = 0
 
-        # Math
         total_downtime_s = implicit_downtime_s + explicit_downtime_s
         actual_uptime_s = max(0, TOTAL_WINDOW_SECONDS - total_downtime_s)
         robot["uptime_pct"] = round((actual_uptime_s / TOTAL_WINDOW_SECONDS) * 100, 1)
 
-        # ---> INJECT NEW ANOMALY FLAG HERE <---
-        # Simply checks if the pre-calculated anomaly array for this robot has any entries
         robot["telemetry_anomally"] = len(MEM_ANOMALIES.get(r_id, [])) > 0
 
         if not r_tel.empty:
@@ -138,16 +123,13 @@ def init_memory():
 
     MEM_ROBOTS.extend(raw_robots)
 
-    # =================================================================
     # CACHE 3: Pre-calculate Telemetry Array
-    # =================================================================
     for r_id in robot_ids:
         r_data = df_telemetry[df_telemetry["robot_id"] == r_id].drop(columns=["_dt"], errors="ignore")
         MEM_TELEMETRY[r_id] = r_data.where(pd.notnull(r_data), None).to_dict(orient="records")
 
-    # =================================================================
+
     # CACHE 4: Pre-calculate Unified Events Timeline
-    # =================================================================
     i_df = df_interactions.copy()
     i_df["event_category"] = "interaction"
     i_df["error"] = False; i_df["errorColumn"] = None; i_df["errorClass"] = None
@@ -216,13 +198,11 @@ def init_memory():
 
     print("Memory cache initialized successfully! Server ready.")
 
-# Trigger the initialization BEFORE the Flask routes define
 init_memory()
 
 
-# =====================================================================
-# INSTANT API ROUTES
-# =====================================================================
+
+# API 
 
 @app.route("/api/robots", methods=["GET"])
 def get_robots():

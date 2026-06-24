@@ -29,7 +29,14 @@ the time. Commit as you go.
 
 # MY WORK HERE
 
-| Setup Backend                  |  | 
+
+| Setup Project |  | 
+|:----------------------------------------------------|:----------------------------------------------------------------|
+| Paste your 6 .csv files here | /yours_robotics/data | 
+| Paste .env file here | /yours_robotics/backend/.env | 
+
+
+| Setup Backend |  | 
 |:----------------------------------------------------|:----------------------------------------------------------------|
 | Download and install Python 3.12.9 | https://www.python.org/downloads/release/python-3129/ | 
 | Run python in backend dir | [cmd] cd backend |
@@ -40,7 +47,7 @@ the time. Commit as you go.
 | Detivate python virtual environment | [cmd] deactivate |
 
 
-| Setup Front                  |  | 
+| Setup Frontend |  | 
 |:----------------------------------------------------|:----------------------------------------------------------------|
 | Download and install NodeJS v26.3.0 | https://nodejs.org/en/download/current | 
 | Run Angular in frontend dir | [cmd] cd frontend |
