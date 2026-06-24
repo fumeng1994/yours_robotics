@@ -619,3 +619,167 @@ h1 {
     from { opacity: 0; transform: translateY(-5px); }
     to { opacity: 1; transform: translateY(0); }
 }
+
+/* --- Stats Row Styles --- */
+.stats-row {
+    display: flex;
+    gap: 16px;
+    margin-bottom: 24px;
+    flex-wrap: wrap;
+
+    .stat-card {
+        flex: 1;
+        min-width: 250px;
+        background: #ffffff;
+        border: 1px solid #cbd5e1;
+        border-radius: 8px;
+        padding: 20px;
+        box-shadow: 0 4px 12px rgba(71, 85, 105, 0.05);
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        justify-content: center;
+        text-align: center;
+        transition: transform 0.2s ease, box-shadow 0.2s ease;
+
+        &:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 6px 16px rgba(71, 85, 105, 0.1);
+        }
+
+        .stat-title {
+            font-size: 0.9rem;
+            color: #64748b;
+            font-weight: 600;
+            margin-bottom: 8px;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+        }
+
+        .stat-value {
+            font-size: 2.2rem;
+            font-weight: 700;
+            color: #1e293b;
+        }
+
+        .stat-sub {
+            font-size: 0.85rem;
+            color: #94a3b8;
+            margin-top: 8px;
+            font-weight: 500;
+        }
+    }
+}
+
+/* --- Unified Styled Banner System (Soft & Eye-Comfortable) --- */
+.styled-banner {
+    border-radius: 8px;
+    padding: 16px 24px;
+    margin-bottom: 20px;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    /* Default base color for text */
+    color: #334155; 
+    border: 1px solid transparent; /* Keeps crisp edges */
+
+    /* Modifier to make it flush when used as a table/container header */
+    &.header-mode {
+        border-bottom-left-radius: 0;
+        border-bottom-right-radius: 0;
+        margin-bottom: 0;
+    }
+
+    .banner-left {
+        display: flex;
+        align-items: center;
+        gap: 16px;
+    }
+
+    .banner-icon {
+        font-size: 1.8rem;
+        padding: 10px;
+        border-radius: 50%;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+    }
+
+    .banner-text {
+        display: flex;
+        flex-direction: column;
+        gap: 4px;
+
+        .banner-title {
+            margin: 0;
+            font-size: 1.25rem;
+            font-weight: 700;
+            border-bottom: none;
+            padding-bottom: 0;
+        }
+
+        .banner-subtitle {
+            margin: 0;
+            font-size: 0.9rem;
+            color: #64748b; /* Soft slate gray for readability */
+        }
+    }
+
+    .count-badge {
+        padding: 6px 14px;
+        border-radius: 20px;
+        font-size: 0.95rem;
+        font-weight: 700;
+        box-shadow: 0 1px 3px rgba(0, 0, 0, 0.05);
+    }
+
+    /* --- Soft Color Themes --- */
+    
+/* 1. Performance (Solid Soft Blue) */
+    &.metrics-banner {
+        background: linear-gradient(135deg, #e0f2fe 0%, #bae6fd 100%);
+        border-color: #7dd3fc;
+
+        .banner-icon { 
+            background: #7dd3fc; 
+            color: #0284c7; 
+        }
+        .banner-text .banner-title { color: #0369a1; }
+        .banner-text .banner-subtitle { color: #0c4a6e; }
+    }
+
+    /* 2. Errors (Solid Soft Red) */
+    &.error-banner {
+        background: linear-gradient(135deg, #fee2e2 0%, #fecaca 100%);
+        border-color: #fca5a5;
+        border-bottom: none;
+
+        .banner-icon { 
+            background: #fca5a5; 
+            color: #b91c1c; 
+        }
+        .banner-text .banner-title { color: #b91c1c; }
+        .banner-text .banner-subtitle { color: #7f1d1d; }
+    }
+
+    /* 3. Anomalies (Solid Soft Amber/Orange) */
+    &.anomaly-banner {
+        background: linear-gradient(135deg, #fef3c7 0%, #fde68a 100%);
+        border-color: #fcd34d;
+        border-bottom: none;
+
+        .banner-icon { 
+            background: #fcd34d; 
+            color: #b45309; 
+        }
+        .banner-text .banner-title { color: #b45309; }
+        .banner-text .banner-subtitle { color: #78350f; }
+        
+        .count-badge {
+            background: #fef3c7;
+            color: #92400e;
+            border: 1px solid #fcd34d;
+            box-shadow: 0 2px 4px rgba(251, 191, 36, 0.2);
+        }
+    }
+}

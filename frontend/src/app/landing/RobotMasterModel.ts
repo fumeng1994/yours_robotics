@@ -6,4 +6,8 @@ export interface RobotMasterModel {
   robot_id: string;
   uptime_pct: number;
   telemetry_anomally: boolean;
+  total_revenue: number;
+  total_interactions: number;
+  converted_scans: number;
+  total_scans: number;
 }

@@ -10,34 +10,70 @@
     </div>
     }
 
-    @if (robots$ | async; as robotsList) {
-    @if (robotsList.length > 0) {
-    <div class="table-wrapper">
-        <table class="styled-table">
-            <thead>
-                <tr>
-                    <th>Robot ID</th>
-                    <th>Model</th>
-                    <th>Home Zone</th>
-                    <th>Firmware Version</th>
-                    <th>Deploy Date</th>
-                    <th>Uptime</th>
-                </tr>
-            </thead>
-            <tbody>
-                @for (robot of robotsList; track robot.robot_id) {
-                <tr (click)="goToRobot(robot.robot_id)" class="clickable-row" style="cursor: pointer;">
-                    <td><strong>{{ robot.robot_id }}</strong></td>
-                    <td>{{ robot.model }}</td>
-                    <td><span class="badge">{{ robot.home_zone }}</span></td>
-                    <td>{{ robot.firmware_version }}</td>
-                    <td>{{ robot.deploy_date }}</td>
-                    <td>{{ robot.uptime_pct }} @if (robot.telemetry_anomally) {⚠️}</td>
-                </tr>
-                }
-            </tbody>
-        </table>
+    @if (zoneGroups$ | async; as zoneGroups) {
+    @if (zoneGroups.length > 0) {
+
+    @for (group of zoneGroups; track group.zoneName) {
+    <div class="zone-section" style="margin-bottom: 50px;">
+        <div class="zone-header"
+            style="background-color: #ecf0f1; padding: 20px; border-radius: 8px 8px 0 0; border-bottom: 3px solid #3498db; display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 20px;">
+            <h2 style="margin: 0; color: #2c3e50;">{{ group.zoneName }}</h2>
+            <div style="display: flex; gap: 30px; font-size: 0.95em; color: #333; flex-wrap: wrap;">
+                <span><strong>Total Revenue:</strong> ${{ group.totalRevenue | number : '1.2-2' }}</span>
+                <span><strong>Total Interactions:</strong> {{ group.totalInteractions }}</span>
+                <span>
+                    <strong>Conversion/Total Scans:</strong>
+                    {{ group.totalConvertedScans }}/{{ group.totalScans }}
+                    ({{ (group.totalScans ? (group.totalConvertedScans/group.totalScans * 100) : 0) | number : '1.2-2'
+                    }}%)
+                </span>
+            </div>
+        </div>
+
+        <div class="table-wrapper" style="border-radius: 0 0 8px 8px; box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);">
+            <table class="styled-table" style="margin: 0;">
+                <thead>
+                    <tr>
+                        <th>Robot ID</th>
+                        <th>Model</th>
+                        <th>Firmware Version</th>
+                        <th>Deploy Date</th>
+                        <th>Uptime</th>
+                        <th>Revenue</th>
+                        <th>Conversion/Total QR-Scans</th>
+                        <th>Total Interactions</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    @for (robot of group.robots; track robot.robot_id) {
+                    <tr (click)="goToRobot(robot.robot_id)" class="clickable-row" style="cursor: pointer;">
+                        <td>
+                            <strong>{{ robot.robot_id }}</strong>
+                            @if (robot.telemetry_anomally) {
+                            <span title="Anomaly Detected!">⚠️</span>
+                            }
+                        </td>
+                        <td>{{ robot.model }}</td>
+                        <td>{{ robot.firmware_version }}</td>
+                        <td>{{ robot.deploy_date }}</td>
+                        <td>
+                            {{ robot.uptime_pct }}%
+                        </td>
+                        <td>${{ robot.total_revenue | number : '1.2-2' }}</td>
+                        <td>
+                            {{ robot.converted_scans }}/{{ robot.total_scans }}
+                            ({{ (robot.total_scans ? (robot.converted_scans/robot.total_scans * 100) : 0)
+                            | number:'1.0-1' }}%)
+                        </td>
+                        <td>{{ robot.total_interactions }}</td>
+                    </tr>
+                    }
+                </tbody>
+            </table>
+        </div>
     </div>
+    }
+
     } @else if (!errorMessage) {
     <div class="no-data-placeholder">
         <p>No active robots found in the fleet registry.</p>

@@ -65,6 +65,11 @@ export class RobotDetailComponent implements OnInit {
     errorSummary$!: Observable<RobotEvent[]>;
     topErrors$!: Observable<ErrorAggregate[]>;
     telemetryAnomalies$ = new BehaviorSubject<RobotEvent[]>([]);
+    anomalySortConfig$ = new BehaviorSubject<{ column: string, direction: 'asc' | 'desc' }>({
+        column: 'timestamp',
+        direction: 'desc'
+    });
+    displayedAnomalies$!: Observable<RobotEvent[]>;
 
     // 1. ADD FILTER & SORT STATE VARIABLES
     searchTerm$ = new BehaviorSubject<string>('');
@@ -83,6 +88,12 @@ export class RobotDetailComponent implements OnInit {
     });
 
     categorizedEvents$!: Observable<RobotEvent[]>;
+
+    totalInteractions$!: Observable<number>;
+    totalQrScans$!: Observable<number>;
+    totalConvertedScans$!: Observable<number>;
+    conversionPercentage$!: Observable<number>;
+    totalRevenue$!: Observable<number>;
 
     ngOnInit(): void {
         this.robotId = this.route.snapshot.paramMap.get('id') || 'R-10';
@@ -113,6 +124,37 @@ export class RobotDetailComponent implements OnInit {
                 }
             });
 
+        // Sort Anomalies (Time filter removed so all anomalies always show)
+        this.displayedAnomalies$ = combineLatest([
+            this.telemetryAnomalies$,
+            this.anomalySortConfig$
+        ]).pipe(
+            map(([anomalies, sort]) => {
+                // Create a shallow copy before sorting to avoid mutating the source array
+                return [...anomalies].sort((a, b) => {
+                    let valA: any = a[sort.column as keyof RobotEvent];
+                    let valB: any = b[sort.column as keyof RobotEvent];
+
+                    // Handle special column transformations
+                    if (sort.column === 'meta') {
+                        valA = this.getMetaSummary(a.meta);
+                        valB = this.getMetaSummary(b.meta);
+                    } else if (sort.column === 'timestamp') {
+                        valA = new Date(a.timestamp).getTime();
+                        valB = new Date(b.timestamp).getTime();
+                    }
+
+                    // Fallbacks for safe sorting
+                    valA = valA || '';
+                    valB = valB || '';
+
+                    if (valA < valB) return sort.direction === 'asc' ? -1 : 1;
+                    if (valA > valB) return sort.direction === 'asc' ? 1 : -1;
+                    return 0;
+                });
+            })
+        );
+
         const filteredData$ = combineLatest([this.rawEvents$, this.timeWindow$]).pipe(
             map(([events, window]) => {
                 return events.filter(e => {
@@ -120,6 +162,43 @@ export class RobotDetailComponent implements OnInit {
                     return time >= window.start && time <= window.end;
                 }).sort((a, b) => new Date(a.timestamp).getTime() - new Date(b.timestamp).getTime());
             })
+        );
+
+        // 1) Total Interactions Count
+        this.totalInteractions$ = filteredData$.pipe(
+            map(events => events.filter(e => e.event_category === 'interaction').length)
+        );
+
+        // 2) Total QR Scans
+        this.totalQrScans$ = filteredData$.pipe(
+            map(events => events.filter(e =>
+                e.event_category === 'interaction' &&
+                e.meta?.['type'] === 'qr_scan' // Updated to match your schema
+            ).length)
+        );
+
+        // 3) Total Converted Scans
+        this.totalConvertedScans$ = filteredData$.pipe(
+            map(events => events.filter(e =>
+                e.event_category === 'interaction' &&
+                e.meta?.['converted'] === true // Updated to check the boolean flag
+            ).length)
+        );
+
+        // 4) Calculate Percentage Conversion
+        this.conversionPercentage$ = combineLatest([this.totalConvertedScans$, this.totalQrScans$]).pipe(
+            map(([converted, totalQr]) => totalQr > 0 ? (converted / totalQr) * 100 : 0)
+        );
+
+        // 5) Total Revenue
+        this.totalRevenue$ = filteredData$.pipe(
+            map(events => events.filter(e =>
+                e.event_category === 'vending' &&
+                e.meta?.['payment_status']?.toLowerCase() === 'paid'
+            ).reduce((sum, e) => {
+                const amount = parseFloat(e.meta?.['amount'] || e.meta?.['price'] || 0);
+                return sum + (isNaN(amount) ? 0 : amount);
+            }, 0))
         );
 
         this.errorSummary$ = filteredData$.pipe(
@@ -193,6 +272,7 @@ export class RobotDetailComponent implements OnInit {
                     return 0;
                 });
             })
+
         );
 
         // Map configs across all tracks. The 'all_errors' virtual category captures any event flagged as an error.
@@ -449,6 +529,25 @@ export class RobotDetailComponent implements OnInit {
 
     getEventSortIcon(column: string): string {
         const config = this.eventSortConfig$.value;
+        if (config.column !== column) return '↕';
+        return config.direction === 'asc' ? '↑' : '↓';
+    }
+
+    sortAnomalyList(column: string) {
+        const current = this.anomalySortConfig$.value;
+        if (current.column === column) {
+            this.anomalySortConfig$.next({
+                column,
+                direction: current.direction === 'asc' ? 'desc' : 'asc'
+            });
+        } else {
+            const defaultDir = column === 'timestamp' ? 'desc' : 'asc';
+            this.anomalySortConfig$.next({ column, direction: defaultDir });
+        }
+    }
+
+    getAnomalySortIcon(column: string): string {
+        const config = this.anomalySortConfig$.value;
         if (config.column !== column) return '↕';
         return config.direction === 'asc' ? '↑' : '↓';
     }

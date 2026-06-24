@@ -28,6 +28,7 @@
 
 Deliberately left out
 1) Live updates - I am unsure of input stream methods
+2) Current/last-known status - Static data provided not effective to showcase this
 2) Test case - better to get more data before doing consolidated
 3) Deployment instruction - many options available, undecided until I know what is the full specification
 

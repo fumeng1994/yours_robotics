@@ -29,6 +29,11 @@ the time. Commit as you go.
 
 # MY WORK HERE
 
+| Git Clone |  | 
+|:----------------------------------------------------|:----------------------------------------------------------------|
+|  | 
+
+
 
 | Setup Project |  | 
 |:----------------------------------------------------|:----------------------------------------------------------------|
@@ -53,4 +58,4 @@ the time. Commit as you go.
 | Run Angular in frontend dir | [cmd] cd frontend |
 | Install packages | [cmd] npm install | 
 | Start Frontend | [cmd] npm start | 
-
+| View app on localhost:4200 | | 

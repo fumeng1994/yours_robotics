@@ -11,6 +11,7 @@ MEM_TELEMETRY = {}
 MEM_EVENTS = {}
 MEM_ANOMALIES = {}
 
+
 def init_memory():
     """
     Runs exactly once on server startup. Loads all CSVs, performs all
@@ -26,7 +27,7 @@ def init_memory():
     df_vending = pd.read_csv("../data/vending.csv")
     df_nav_events = pd.read_csv("../data/nav_events.csv")
 
-    # Global Data Cleaning 
+    # Global Data Cleaning
     if "state" in df_telemetry.columns:
         df_telemetry["state"] = df_telemetry["state"].str.lower()
     if "zone" in df_telemetry.columns:
@@ -37,13 +38,14 @@ def init_memory():
             df["robot_id"] = df["robot_id"].astype(str).str.strip()
 
     for df in [df_telemetry, df_interactions, df_vending, df_nav_events]:
-        df["_dt"] = pd.to_datetime(df["timestamp"], dayfirst=True, format="mixed", errors="coerce")
+        df["_dt"] = pd.to_datetime(
+            df["timestamp"], dayfirst=True, format="mixed", errors="coerce"
+        )
 
     start_date = pd.to_datetime("2026-06-01")
     end_date = pd.to_datetime("2026-06-15")
     robot_ids = df_robots["robot_id"].unique()
     GAP_THRESHOLD = pd.Timedelta(minutes=61)
-
 
     # CACHE 1: Pre-calculate Anomalies Cache FIRST (Unbounded Dates)
     full_tel = df_telemetry.dropna(subset=["_dt"]).sort_values(by="_dt")
@@ -56,13 +58,12 @@ def init_memory():
         if not r_tel.empty:
             r_tel["time_diff"] = r_tel["_dt"].diff()
             gaps = r_tel[r_tel["time_diff"] > GAP_THRESHOLD].copy()
-            
-            if not gaps.empty:
 
+            if not gaps.empty:
                 boot_limit = pd.to_datetime("2026-06-01 00:15:00")
 
-                is_june_1st = (gaps["_dt"].dt.date == DEPLOYMENT_DATE)
-                is_before_boot = (gaps["_dt"] <= boot_limit)
+                is_june_1st = gaps["_dt"].dt.date == DEPLOYMENT_DATE
+                is_before_boot = gaps["_dt"] <= boot_limit
 
                 gaps = gaps[~(is_june_1st & is_before_boot)]
 
@@ -70,30 +71,127 @@ def init_memory():
                     gaps["timestamp"] = gaps["_dt"].dt.strftime("%Y-%m-%dT%H:%M:%SZ")
                     gaps = gaps.drop(columns=["_dt", "time_diff"])
                     gaps = gaps.where(pd.notnull(gaps), None)
-                    
+
                     for rec in gaps.to_dict(orient="records"):
                         ts_val = rec.pop("timestamp", None)
                         rec.pop("robot_id", None)
                         meta = {k: v for k, v in rec.items() if v is not None}
-                        anoms.append({
-                            "timestamp": ts_val,
-                            "anomally": "timestamp",
-                            "event_category": "telemetry",
-                            "robot_id": r_id,
-                            "meta": meta
-                        })
-                    
+                        anoms.append(
+                            {
+                                "timestamp": ts_val,
+                                "anomally": "missed_telemetry_ping",
+                                "event_category": "telemetry",
+                                "robot_id": r_id,
+                                "meta": meta,
+                            }
+                        )
+
         MEM_ANOMALIES[r_id] = anoms
 
+    # --- NEW: Vending Anomaly Cleaning & Logging ---
+    if "amount" in df_vending.columns:
+        high_amount_mask = df_vending["amount"] >= 100
+        if high_amount_mask.any():
+            # 1. Capture the anomalous rows BEFORE fixing them (so 'amount' retains the raw suspicious value like 600)
+            anomalous_vending_events = df_vending[high_amount_mask].copy()
+
+            # 2. Fix the anomaly in the main dataframe for accurate revenue calculations
+            df_vending.loc[high_amount_mask, "amount"] = (
+                df_vending.loc[high_amount_mask, "amount"] / 100
+            )
+
+            # 3. Inject the specific events into the robot's anomaly timeline
+            for rec in anomalous_vending_events.to_dict(orient="records"):
+                r_id = str(rec.get("robot_id")).strip()
+
+                # Ensure the robot exists in the cache
+                if r_id not in MEM_ANOMALIES:
+                    MEM_ANOMALIES[r_id] = []
+
+                # Format timestamp cleanly
+                ts_val = rec.get("timestamp")
+                if "_dt" in rec and pd.notnull(rec["_dt"]):
+                    ts_val = rec["_dt"].strftime("%Y-%m-%dT%H:%M:%SZ")
+
+                # Filter out system/root columns for the meta payload
+                meta = {
+                    k: v
+                    for k, v in rec.items()
+                    if pd.notnull(v) and k not in ["_dt", "robot_id", "timestamp"]
+                }
+
+                # Append exactly matching the requested format
+                MEM_ANOMALIES[r_id].append(
+                    {
+                        "anomally": "suspicious_amount",
+                        "event_category": "vending",
+                        "meta": meta,
+                        "robot_id": r_id,
+                        "timestamp": ts_val,
+                    }
+                )
+
     # CACHE 2: Pre-calculate Fleet Baseline (Uptime & Anomaly Flag)
-    TOTAL_WINDOW_SECONDS = 14 * 24 * 60 * 60 
-    
-    up_tel = df_telemetry[(df_telemetry["_dt"] >= start_date) & (df_telemetry["_dt"] < end_date)].dropna(subset=["_dt"]).sort_values(by="_dt")
-    up_nav = df_nav_events[(df_nav_events["_dt"] >= start_date) & (df_nav_events["_dt"] < end_date)]
+    TOTAL_WINDOW_SECONDS = 14 * 24 * 60 * 60
+
+    up_tel = (
+        df_telemetry[
+            (df_telemetry["_dt"] >= start_date) & (df_telemetry["_dt"] < end_date)
+        ]
+        .dropna(subset=["_dt"])
+        .sort_values(by="_dt")
+    )
+    up_nav = df_nav_events[
+        (df_nav_events["_dt"] >= start_date) & (df_nav_events["_dt"] < end_date)
+    ]
+
+    # --- NEW: Vending Anomaly Cleaning (from generate_summary.py) ---
+    if "amount" in df_vending.columns:
+        high_amount_mask = df_vending["amount"] >= 100
+        if high_amount_mask.any():
+            df_vending.loc[high_amount_mask, "amount"] = (
+                df_vending.loc[high_amount_mask, "amount"] / 100
+            )
+
+    # --- NEW: Calculate Total Revenue Per Robot ---
+    paid_vending = df_vending[df_vending["payment_status"].str.lower() == "paid"]
+    revenue_map = paid_vending.groupby("robot_id")["amount"].sum().to_dict()
+
+    # --- NEW: Vending Anomaly Cleaning & Revenue ---
+    if "amount" in df_vending.columns:
+        high_amount_mask = df_vending["amount"] >= 100
+        if high_amount_mask.any():
+            df_vending.loc[high_amount_mask, "amount"] = (
+                df_vending.loc[high_amount_mask, "amount"] / 100
+            )
+
+    paid_vending = df_vending[df_vending["payment_status"].str.lower() == "paid"]
+    revenue_map = paid_vending.groupby("robot_id")["amount"].sum().to_dict()
+
+    # --- NEW: Interactions & QR Metrics Maps ---
+    interactions_map = df_interactions.groupby("robot_id").size().to_dict()
+    if "type" in df_interactions.columns:
+        qr_interactions = df_interactions[df_interactions["type"] == "qr_scan"]
+        scans_map = qr_interactions.groupby("robot_id").size().to_dict()
+
+        if "converted" in df_interactions.columns:
+            converted_df = qr_interactions[
+                qr_interactions["converted"].astype(str).str.upper() == "TRUE"
+            ]
+            conversions_map = converted_df.groupby("robot_id").size().to_dict()
+        else:
+            conversions_map = {}
+    else:
+        scans_map = {}
+        conversions_map = {}
 
     raw_robots = df_robots.to_dict(orient="records")
     for robot in raw_robots:
         r_id = robot["robot_id"]
+        robot["total_revenue"] = round(revenue_map.get(r_id, 0.0), 2)
+        robot["total_interactions"] = int(interactions_map.get(r_id, 0))
+        robot["total_scans"] = int(scans_map.get(r_id, 0))
+        robot["converted_scans"] = int(conversions_map.get(r_id, 0))
 
         r_tel = up_tel[up_tel["robot_id"] == r_id].copy()
         if not r_tel.empty:
@@ -105,8 +203,12 @@ def init_memory():
 
         r_nav = up_nav[up_nav["robot_id"] == r_id]
         if not r_nav.empty:
-            crit = r_nav[r_nav["event_type"].isin(["fault", "estop", "manual_takeover"])]
-            explicit_downtime_s = pd.to_numeric(crit["duration_s"], errors="coerce").fillna(0).sum()
+            crit = r_nav[
+                r_nav["event_type"].isin(["fault", "estop", "manual_takeover"])
+            ]
+            explicit_downtime_s = (
+                pd.to_numeric(crit["duration_s"], errors="coerce").fillna(0).sum()
+            )
         else:
             explicit_downtime_s = 0
 
@@ -125,14 +227,19 @@ def init_memory():
 
     # CACHE 3: Pre-calculate Telemetry Array
     for r_id in robot_ids:
-        r_data = df_telemetry[df_telemetry["robot_id"] == r_id].drop(columns=["_dt"], errors="ignore")
-        MEM_TELEMETRY[r_id] = r_data.where(pd.notnull(r_data), None).to_dict(orient="records")
-
+        r_data = df_telemetry[df_telemetry["robot_id"] == r_id].drop(
+            columns=["_dt"], errors="ignore"
+        )
+        MEM_TELEMETRY[r_id] = r_data.where(pd.notnull(r_data), None).to_dict(
+            orient="records"
+        )
 
     # CACHE 4: Pre-calculate Unified Events Timeline
     i_df = df_interactions.copy()
     i_df["event_category"] = "interaction"
-    i_df["error"] = False; i_df["errorColumn"] = None; i_df["errorClass"] = None
+    i_df["error"] = False
+    i_df["errorColumn"] = None
+    i_df["errorClass"] = None
     mask = i_df["outcome"].isin(["error", "abandoned"])
     i_df.loc[mask, "error"] = True
     i_df.loc[mask, "errorColumn"] = "outcome"
@@ -140,15 +247,29 @@ def init_memory():
 
     v_df = df_vending.copy()
     v_df["event_category"] = "vending"
-    v_df["error"] = False; v_df["errorColumn"] = None; v_df["errorClass"] = None
+    v_df["error"] = False
+    v_df["errorColumn"] = None
+    v_df["errorClass"] = None
     mask = v_df["payment_status"].isin(["failed", "refunded"])
     v_df.loc[mask, "error"] = True
     v_df.loc[mask, "errorColumn"] = "payment_status"
     v_df.loc[mask, "errorClass"] = v_df.loc[mask, "payment_status"]
 
+    # --- NEW: 2. Flag the suspicious amounts using the anomalies we captured in Cache 2 ---
+    # if 'anomalous_vending_events' in locals() and not anomalous_vending_events.empty:
+    #     anom_txns = anomalous_vending_events["txn_id"].tolist()
+    #     mask_amount = v_df["txn_id"].isin(anom_txns)
+        
+    #     # Override error status for these specific transactions
+    #     v_df.loc[mask_amount, "error"] = True
+    #     v_df.loc[mask_amount, "errorColumn"] = "amount"
+    #     v_df.loc[mask_amount, "errorClass"] = "suspicious_amount"
+
     n_df = df_nav_events.copy()
     n_df["event_category"] = "nav_event"
-    n_df["error"] = False; n_df["errorColumn"] = None; n_df["errorClass"] = None
+    n_df["error"] = False
+    n_df["errorColumn"] = None
+    n_df["errorClass"] = None
     t_mask = n_df["event_type"].isin(["fault", "estop", "manual_takeover"])
     c_mask = n_df["code"].isin(["SYS-500", "SAF-201", "OPS-301", "NAV-101"])
     n_df.loc[t_mask | c_mask, "error"] = True
@@ -159,7 +280,9 @@ def init_memory():
 
     t_df = df_telemetry.copy()
     t_df["event_category"] = "telemetry"
-    t_df["error"] = False; t_df["errorColumn"] = None; t_df["errorClass"] = None
+    t_df["error"] = False
+    t_df["errorColumn"] = None
+    t_df["errorClass"] = None
 
     combined = pd.concat([i_df, v_df, n_df, t_df], ignore_index=True)
     combined = combined.dropna(subset=["_dt"])
@@ -180,34 +303,36 @@ def init_memory():
             err_val = rec.pop("error", False)
             col_val = rec.pop("errorColumn", None)
             cls_val = rec.pop("errorClass", None)
-            
+
             meta = {k: v for k, v in rec.items() if v is not None}
             payload = {
                 "robot_id": r_id_val,
                 "event_category": cat_val,
                 "error": bool(err_val),
                 "timestamp": ts_val,
-                "meta": meta
+                "meta": meta,
             }
             if err_val and col_val is not None:
                 payload["errorColumn"] = col_val
                 payload["errorClass"] = cls_val
             timeline.append(payload)
-            
+
         MEM_EVENTS[r_id] = timeline
 
     print("Memory cache initialized successfully! Server ready.")
 
+
 init_memory()
 
 
+# API
 
-# API 
 
 @app.route("/api/robots", methods=["GET"])
 def get_robots():
     """Returns the fleet baseline overview."""
     return jsonify(MEM_ROBOTS)
+
 
 @app.route("/api/robot/<robot_id>", methods=["GET"])
 def get_robot_telemetry(robot_id):
@@ -218,11 +343,13 @@ def get_robot_telemetry(robot_id):
         return jsonify({"error": f"No telemetry data found for robot {clean_id}"}), 404
     return jsonify(data)
 
+
 @app.route("/api/robot/<robot_id>/event", methods=["GET"])
 def get_robot_events(robot_id):
     """Returns a unified, chronological timeline of all events."""
     clean_id = str(robot_id).strip()
     return jsonify(MEM_EVENTS.get(clean_id, []))
+
 
 @app.route("/api/robot/<robot_id>/anomally", methods=["GET"])
 def get_robot_anomalies(robot_id):

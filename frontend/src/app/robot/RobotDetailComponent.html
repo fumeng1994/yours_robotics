@@ -29,8 +29,14 @@
 
     @if (topErrors$ | async; as topErrors) {
     <div class="top-errors-container" *ngIf="topErrors.length > 0">
-        <div class="top-errors-header">
-            <span class="icon-indicator">🔥</span> Most Frequent Errors
+       <div class="styled-banner error-banner header-mode">
+            <div class="banner-left">
+                <span class="banner-icon">🔥</span>
+                <div class="banner-text">
+                    <h3 class="banner-title">Most Frequent Errors</h3>
+                    <p class="banner-subtitle">Top recurring sub-system failures and triggers.</p>
+                </div>
+            </div>
         </div>
         <div class="top-errors-grid">
             <div class="top-error-card" *ngFor="let err of topErrors; let i = index">
@@ -53,24 +59,71 @@
     </div>
     }
 
-
-    @if (telemetryAnomalies$ | async; as anomalies) {
-    <div class="summary-box anomaly-log-box">
-        <div class="summary-header anomaly-header">
-            <div class="header-title">
-                <span class="icon-indicator">⚠️</span> Telemetry anomally (missed ping for 60minutes)
+   <div class="styled-banner metrics-banner">
+        <div class="banner-left">
+            <span class="banner-icon">📈</span>
+            <div class="banner-text">
+                <h3 class="banner-title">Performance Overview</h3>
+                <p class="banner-subtitle">Key operational metrics and commercial performance for this unit.</p>
             </div>
-            <div class="error-count">{{ anomalies.length }} instances</div>
+        </div>
+    </div>
+
+    <div class="stats-row">
+        <!-- Box 1: Total interactions count -->
+        <div class="stat-card">
+            <div class="stat-title">Total Interactions</div>
+            <div class="stat-value">{{ totalInteractions$ | async }}</div>
+        </div>
+
+        <!-- Box 2: Conversion Metrics -->
+        <div class="stat-card">
+            <div class="stat-title">Conversion Rate</div>
+            <div class="stat-value">{{ conversionPercentage$ | async | number:'1.0-1' }}%</div>
+            <div class="stat-sub">
+                Converted: {{ totalConvertedScans$ | async }} | QR Scans: {{ totalQrScans$ | async }}
+            </div>
+        </div>
+
+        <!-- Box 3: Total Revenue -->
+        <div class="stat-card">
+            <div class="stat-title">Total Revenue</div>
+            <div class="stat-value">{{ totalRevenue$ | async | currency:'USD' }}</div>
+        </div>
+    </div>
+
+
+    @if (displayedAnomalies$ | async; as anomalies) {
+    <div class="summary-box anomaly-log-box">
+       <div class="styled-banner anomaly-banner header-mode">
+            <div class="banner-left">
+                <span class="banner-icon">⚠️</span>
+                <div class="banner-text">
+                    <h3 class="banner-title">Anomaly Log</h3>
+                    <p class="banner-subtitle">Detected irregular system behavior and missing telemetry.</p>
+                </div>
+            </div>
+            <div class="banner-right">
+                <span class="count-badge">{{ anomalies.length }} instances</span>
+            </div>
         </div>
 
         <div class="table-container">
             <table class="error-table">
                 <thead>
                     <tr>
-                        <th style="width: 20%;">Time</th>
-                        <th style="width: 15%;">Robot ID</th>
-                        <th style="width: 15%;">Anomaly</th>
-                        <th style="width: 50%;">Event Details (Meta)</th>
+                        <th (click)="sortAnomalyList('timestamp')" class="sortable" style="width: 20%;">
+                            Time <span class="sort-icon">{{ getAnomalySortIcon('timestamp') }}</span>
+                        </th>
+                        <th (click)="sortAnomalyList('robot_id')" class="sortable" style="width: 15%;">
+                            Robot ID <span class="sort-icon">{{ getAnomalySortIcon('robot_id') }}</span>
+                        </th>
+                        <th (click)="sortAnomalyList('anomally')" class="sortable" style="width: 15%;">
+                            Anomaly <span class="sort-icon">{{ getAnomalySortIcon('anomally') }}</span>
+                        </th>
+                        <th (click)="sortAnomalyList('meta')" class="sortable" style="width: 50%;">
+                            Event Details (Meta) <span class="sort-icon">{{ getAnomalySortIcon('meta') }}</span>
+                        </th>
                     </tr>
                 </thead>
                 <tbody>
@@ -86,7 +139,7 @@
                     </tr>
 
                     <tr *ngIf="anomalies.length === 0">
-                        <td colspan="4" class="empty-state">No anomalies detected for this robot.</td>
+                        <td colspan="4" class="empty-state">No anomalies detected for this timeframe.</td>
                     </tr>
                 </tbody>
             </table>
