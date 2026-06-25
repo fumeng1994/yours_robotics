@@ -153,6 +153,45 @@ def generate_summary():
             }
         )
 
+        # --- 6. UNREGISTERED ROBOT ANOMALIES (NEW) ---
+    # Establish the ground truth of registered robots
+    valid_robots = set(robots_df["robot_id"].dropna().unique())
+
+    # Collect all unique robot_ids from the operational datasets
+    all_event_robots = (
+        pd.concat(
+            [
+                telemetry_df["robot_id"]
+                if "robot_id" in telemetry_df.columns
+                else pd.Series(dtype=str),
+                vending_df["robot_id"]
+                if "robot_id" in vending_df.columns
+                else pd.Series(dtype=str),
+                interactions_df["robot_id"]
+                if "robot_id" in interactions_df.columns
+                else pd.Series(dtype=str),
+                nav_events_df["robot_id"]
+                if "robot_id" in nav_events_df.columns
+                else pd.Series(dtype=str),
+            ]
+        )
+        .dropna()
+        .unique()
+    )
+
+    # Find any IDs that exist in events but not in the main registry
+    unregistered_robots = set(all_event_robots) - valid_robots
+
+    if unregistered_robots:
+        unregistered_list = ", ".join(sorted(list(unregistered_robots)))
+        anomalies.append(
+            {
+                "type": "Unregistered Robot ID",
+                "entity": "Multiple Files (robot_id column)",
+                "note": f"Found event logs for robots not listed in the main fleet registry (robots.csv): {unregistered_list}.",
+            }
+        )
+
     # --- METRICS CALCULATION ---
     # Fleet Metrics
     total_robots = int(robots_df["robot_id"].nunique())
@@ -188,8 +227,8 @@ def generate_summary():
             "conversion_rate": round(conversion_rate, 4),
         },
         "metric_definitions": {
-            "availability": "Percentage of total operational time spent in non-fault and non-charging states.",
-            "active_robots": "Any robot that has recorded at least one location/status ping in the telemetry dataset during the recording period.",
+            "availability": "Percentage of total time robot is online and actively updating status.",
+            "active_robots": "Any robot that has recorded at least one location/status ping in the robot dataset during the recording period.",
         },
         "data_quality": {
             "anomalies": anomalies

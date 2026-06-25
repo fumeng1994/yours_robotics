@@ -1,6 +1,12 @@
+import os
+from dotenv import load_dotenv
 from flask import Flask, jsonify
 from flask_cors import CORS
 import pandas as pd
+import requests
+
+
+load_dotenv()
 
 app = Flask(__name__)
 CORS(app)
@@ -356,6 +362,127 @@ def get_robot_anomalies(robot_id):
     """Returns detected telemetry ping anomalies."""
     clean_id = str(robot_id).strip()
     return jsonify(MEM_ANOMALIES.get(clean_id, []))
+
+@app.route("/api/robot/<robot_id>/summary", methods=["GET"])
+def get_robot_summary(robot_id):
+    """
+    Gathers metrics, passes them to an external LLM via an API request,
+    and returns a professional executive summary of the robot's status.
+    """
+    clean_id = str(robot_id).strip()
+    
+    # 1. Gather Total Interactions, Conversion Rate, and Total Revenue
+    robot_baseline = next((r for r in MEM_ROBOTS if r["robot_id"] == clean_id), None)
+    if not robot_baseline:
+        return jsonify({"error": f"Robot {clean_id} not found in baseline cache"}), 404
+        
+    total_interactions = robot_baseline.get("total_interactions", 0)
+    total_scans = robot_baseline.get("total_scans", 0)
+    converted_scans = robot_baseline.get("converted_scans", 0)
+    total_revenue = robot_baseline.get("total_revenue", 0.0)
+    
+    conversion_rate = round((converted_scans / total_scans) * 100, 1) if total_scans > 0 else 0.0
+
+    # 2. Gather Top 3 Most Frequent Errors
+    timeline_events = MEM_EVENTS.get(clean_id, [])
+    error_counts = {}
+    for ev in timeline_events:
+        if ev.get("error"):
+            # Create a unique key for grouping sub-system error types
+            err_class = ev.get("errorClass", "unknown_error")
+            err_col = ev.get("errorColumn", "unknown_column")
+            cat = ev.get("event_category", "unknown_category")
+            
+            error_key = (cat, err_col, err_class)
+            error_counts[error_key] = error_counts.get(error_key, 0) + 1
+
+    # Sort and slice top 3
+    sorted_errors = sorted(error_counts.items(), key=lambda x: x[1], reverse=True)[:3]
+    top_errors_summary = [
+        {
+            "sub_system": err[0][0],
+            "type": err[0][1],
+            "error": err[0][2],
+            "occurrences": err[1]
+        } for err in sorted_errors
+    ]
+
+    # 3. Gather Anomaly Log
+    anomaly_log = MEM_ANOMALIES.get(clean_id, [])
+
+    # 4. Write the Professional Prompt for the LLM
+    llm_prompt = f"""You are an expert autonomous robotics fleet operations analyst. Analyze the following operational telemetry data for Robot ID '{clean_id}' and provide a concise, professional Executive Summary.
+
+### OPERATIONAL DATA PROFILE:
+- **Commercial & Engagement Performance**:
+  - Total Interactions: {total_interactions}
+  - Total QR Scans: {total_scans}
+  - Converted Scans: {converted_scans}
+  - Conversion Rate: {conversion_rate}%
+  - Total Revenue Generated: ${total_revenue:.2f} SGD
+
+- **Top Recurring Errors (Sub-System Failures)**:
+{chr(10).join([f"  {i+1}. Sub-System: {e['sub_system']} | Type: {e['type']} | Error: {e['error']} -> {e['occurrences']} occurrences" for i, e in enumerate(top_errors_summary)]) if top_errors_summary else "  No recorded sub-system errors."}
+
+- **System Anomaly Log**:
+{chr(10).join([f"  - Timestamp: {a.get('timestamp')} | Anomaly Type: {a.get('anomally')} | Meta: {a.get('meta')}" for a in anomaly_log]) if anomaly_log else "  No telemetry or structural anomalies detected."}
+
+### INSTRUCTIONS FOR THE EXECUTIVE SUMMARY:
+1. Provide an overall status health check (e.g., Healthy, Critical Attention, Compromised Revenue Performance).
+2. Highlight any actionable correlations between top sub-system errors and customer experience or conversions (e.g., abandoned interactions or high fault rates).
+3. Point out critical hardware or firmware issues revealed by the anomaly log.
+4. Keep the summary concise, objective, and bulleted for an executive team. Do not hallucinate or use speculative filler prose.
+"""
+
+    llm_api_key = os.getenv("LLM_API_KEY")
+    print(llm_api_key)
+    external_api_url = "https://api.nano-lemon.com/llm/vision/0"
+    headers = {
+        "x-api-key": llm_api_key, 
+        "Content-Type": "application/json",
+        "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36"
+    }
+    payload = {
+        "content": llm_prompt,
+        "model": "qwen3.5:9b",
+        "think": False,
+        "temperature": 0.7,
+        "top_p": 0.9,
+        "num_ctx": 4096
+    }
+
+    try:
+        response = requests.post(
+            external_api_url, 
+            json=payload, 
+            headers=headers, 
+            timeout=300, 
+            verify=False 
+        )
+        response.raise_for_status()
+        api_data = response.json()
+        print(api_data)
+
+        # Return the generated content back along with the data structure
+        return jsonify({
+            "robot_id": clean_id,
+            "executive_summary": api_data.get("content", "Failed to retrieve summary description."),
+            "metrics_compiled": {
+                "top_errors": top_errors_summary,
+                "performance": {
+                    "total_interactions": total_interactions,
+                    "conversion_rate_pct": conversion_rate,
+                    "total_revenue_sgd": total_revenue
+                },
+                "anomalies_count": len(anomaly_log)
+            }
+        }), 200
+
+    except requests.exceptions.RequestException as e:
+        return jsonify({
+            "error": "Failed to communicate with executive summary LLM engine",
+            "details": str(e)
+        }), 502
 
 
 if __name__ == "__main__":

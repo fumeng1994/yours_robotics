@@ -1,4 +1,4 @@
-import { Component, OnInit, inject } from '@angular/core';
+import { Component, OnInit, inject, ChangeDetectorRef } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { HttpClient } from '@angular/common/http';
 import { ActivatedRoute } from '@angular/router';
@@ -6,6 +6,8 @@ import { Observable, BehaviorSubject, map, combineLatest } from 'rxjs';
 import { ChartConfiguration, ChartOptions } from 'chart.js';
 import { BaseChartDirective } from 'ng2-charts';
 import { RouterLink } from '@angular/router';
+import { catchError, timeout, finalize } from 'rxjs/operators';
+import { of } from 'rxjs';
 
 interface ErrorAggregate {
     category: string;
@@ -35,6 +37,7 @@ interface RobotEvent {
 export class RobotDetailComponent implements OnInit {
     private route = inject(ActivatedRoute);
     private http = inject(HttpClient);
+    private cdr = inject(ChangeDetectorRef);
 
     robotId: string | null = '';
     errorMessage: string = '';
@@ -94,6 +97,11 @@ export class RobotDetailComponent implements OnInit {
     totalConvertedScans$!: Observable<number>;
     conversionPercentage$!: Observable<number>;
     totalRevenue$!: Observable<number>;
+
+    isGeneratingSummary = false;
+    executiveSummaryHtml: string | null = null;
+    summaryErrorTitle: string | null = null;
+    summaryErrorDetails: string | null = null;
 
     ngOnInit(): void {
         this.robotId = this.route.snapshot.paramMap.get('id') || 'R-10';
@@ -550,5 +558,58 @@ export class RobotDetailComponent implements OnInit {
         const config = this.anomalySortConfig$.value;
         if (config.column !== column) return '↕';
         return config.direction === 'asc' ? '↑' : '↓';
+    }
+
+    generateExecutiveSummary() {
+        if (!this.robotId || this.isGeneratingSummary) return;
+
+        this.isGeneratingSummary = true;
+        this.executiveSummaryHtml = null;
+        this.summaryErrorTitle = null;
+        this.summaryErrorDetails = null;
+
+        this.http.get<any>(`http://localhost:5000/api/robot/${this.robotId}/summary`)
+            .pipe(
+                timeout(300000), // 5 minutes timeout
+                catchError(err => {
+                    this.summaryErrorTitle = err.error?.error || 'Failed to generate summary';
+                    this.summaryErrorDetails = err.error?.details || err.message || 'An unknown communication error occurred.';
+                    
+                    // Stop loading and force UI update on error
+                    this.isGeneratingSummary = false;
+                    this.cdr.detectChanges(); 
+                    
+                    return of(null);
+                })
+            )
+            .subscribe(res => {
+                // Stop loading 
+                this.isGeneratingSummary = false;
+                
+                if (res && res.executive_summary) {
+                    this.executiveSummaryHtml = this.parseBasicMarkdown(res.executive_summary);
+                }
+                
+                // Force Angular to instantly repaint the UI and show the text
+                this.cdr.detectChanges(); 
+            });
+    }
+
+// Upgraded lightweight markdown parser
+    private parseBasicMarkdown(text: string): string {
+        if (!text) return '';
+        
+        return text
+            // 1. Headers: Wrap in styled h3 AND swallow trailing newlines so pre-wrap doesn't double-space
+            .replace(/^###\s+(.*)(?:\r?\n)*/gm, '<h3 class="md-header">$1</h3>')
+            
+            // 2. Bold (**text**) -> Wrap in strong
+            .replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>')
+            
+            // 3. Inline Code (`code`) -> Wrap in styled code tag
+            .replace(/`([^`]+)`/g, '<code class="md-code">$1</code>')
+            
+            // 4. Bullet Points (* item) -> Replace with true bullet, preserve indent
+            .replace(/^(\s*)\*\s+/gm, '$1• ');
     }
 }

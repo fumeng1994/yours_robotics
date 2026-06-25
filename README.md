@@ -31,14 +31,15 @@ the time. Commit as you go.
 
 | Git Clone |  | 
 |:----------------------------------------------------|:----------------------------------------------------------------|
-|  | 
-
+| Download & Install Git |  https://git-scm.com/install/ | 
+| Navigate to the folder in your computer | [cmd] cd <your folder on computer>  | 
+| Clone Repo | [cmd] git clone https://github.com/your_username/your_repo_name.git |
 
 
 | Setup Project |  | 
 |:----------------------------------------------------|:----------------------------------------------------------------|
-| Paste your 6 .csv files here | /yours_robotics/data | 
-| Paste .env file here | /yours_robotics/backend/.env | 
+| Paste your 6 .csv files here | /yours_robotics/data |  |
+| Paste .env file here | /yours_robotics/backend/.env | Required for AI summary |
 
 
 | Setup Backend |  | 
@@ -58,4 +59,4 @@ the time. Commit as you go.
 | Run Angular in frontend dir | [cmd] cd frontend |
 | Install packages | [cmd] npm install | 
 | Start Frontend | [cmd] npm start | 
-| View app on localhost:4200 | | 
+| View app on browser at localhost:4200 | | 

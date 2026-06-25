@@ -3,3 +3,4 @@
 /frontend/.angular/
 /frontend/node_modules/
 /frontend/.vscode
+/backend/.env

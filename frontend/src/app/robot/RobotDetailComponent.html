@@ -7,7 +7,28 @@
 
 
     <div class="header-row">
-        <h2>Autonomous Operations Timeline: {{ robotId }}</h2>
+        <div class="title-with-actions">
+            <h2>Autonomous Operations Timeline: {{ robotId }}</h2>
+            <button class="btn-generate-summary" 
+                    (click)="generateExecutiveSummary()" 
+                    [disabled]="isGeneratingSummary">
+                <span *ngIf="!isGeneratingSummary">✨ Generate Executive Summary</span>
+                <span *ngIf="isGeneratingSummary" class="loading-spinner">⏳ Generating...</span>
+            </button>
+        </div>
+
+        @if (executiveSummaryHtml) {
+        <div class="summary-box executive-summary-box">
+            <div class="summary-content" [innerHTML]="executiveSummaryHtml"></div>
+        </div>
+        }
+
+        @if (summaryErrorTitle) {
+        <div class="error-banner">
+            <strong>{{ summaryErrorTitle }}</strong>
+            <p style="margin: 4px 0 0 0; font-size: 0.85rem;">{{ summaryErrorDetails }}</p>
+        </div>
+        }
 
         <div class="zoom-controls">
             <button class="btn-zoom" [class.active]="activeView === 'full'" (click)="zoomToFull()">
