@@ -132,14 +132,20 @@ export class RobotDetailComponent implements OnInit {
                 }
             });
 
-        // Sort Anomalies (Time filter removed so all anomalies always show)
         this.displayedAnomalies$ = combineLatest([
             this.telemetryAnomalies$,
-            this.anomalySortConfig$
+            this.anomalySortConfig$,
+            this.timeWindow$ // 1. Inject timeWindow$ here
         ]).pipe(
-            map(([anomalies, sort]) => {
-                // Create a shallow copy before sorting to avoid mutating the source array
-                return [...anomalies].sort((a, b) => {
+            map(([anomalies, sort, window]) => {
+                // 2. Filter the anomalies based on the selected time window first
+                const filteredAnomalies = anomalies.filter(a => {
+                    const time = new Date(a.timestamp).getTime();
+                    return time >= window.start && time <= window.end;
+                });
+
+                // 3. Sort the filtered array
+                return filteredAnomalies.sort((a, b) => {
                     let valA: any = a[sort.column as keyof RobotEvent];
                     let valB: any = b[sort.column as keyof RobotEvent];
 
@@ -574,41 +580,41 @@ export class RobotDetailComponent implements OnInit {
                 catchError(err => {
                     this.summaryErrorTitle = err.error?.error || 'Failed to generate summary';
                     this.summaryErrorDetails = err.error?.details || err.message || 'An unknown communication error occurred.';
-                    
+
                     // Stop loading and force UI update on error
                     this.isGeneratingSummary = false;
-                    this.cdr.detectChanges(); 
-                    
+                    this.cdr.detectChanges();
+
                     return of(null);
                 })
             )
             .subscribe(res => {
                 // Stop loading 
                 this.isGeneratingSummary = false;
-                
+
                 if (res && res.executive_summary) {
                     this.executiveSummaryHtml = this.parseBasicMarkdown(res.executive_summary);
                 }
-                
+
                 // Force Angular to instantly repaint the UI and show the text
-                this.cdr.detectChanges(); 
+                this.cdr.detectChanges();
             });
     }
 
-// Upgraded lightweight markdown parser
+    // Upgraded lightweight markdown parser
     private parseBasicMarkdown(text: string): string {
         if (!text) return '';
-        
+
         return text
             // 1. Headers: Wrap in styled h3 AND swallow trailing newlines so pre-wrap doesn't double-space
             .replace(/^###\s+(.*)(?:\r?\n)*/gm, '<h3 class="md-header">$1</h3>')
-            
+
             // 2. Bold (**text**) -> Wrap in strong
             .replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>')
-            
+
             // 3. Inline Code (`code`) -> Wrap in styled code tag
             .replace(/`([^`]+)`/g, '<code class="md-code">$1</code>')
-            
+
             // 4. Bullet Points (* item) -> Replace with true bullet, preserve indent
             .replace(/^(\s*)\*\s+/gm, '$1• ');
     }

@@ -39,11 +39,6 @@
         "note": "Found underscores and trailing spaces in zones. Replaced '_' with '-' and stripped spaces."
       },
       {
-        "type": "Missing Data",
-        "entity": "telemetry.csv (battery_pct column)",
-        "note": "Found missing battery percentages. Filled with 0."
-      },
-      {
         "type": "Missing Decimal Point",
         "entity": "vending.csv (amount column)",
         "note": "Found transaction amounts >= 100 (e.g., 350). Assumed missing decimals and divided by 100."

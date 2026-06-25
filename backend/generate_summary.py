@@ -98,19 +98,6 @@ def generate_summary():
                 }
             )
 
-    if "battery_pct" in telemetry_df.columns:
-        if telemetry_df["battery_pct"].isnull().any():
-            telemetry_df["battery_pct"] = telemetry_df["battery_pct"].fillna(
-                0
-            )  # Or previous value
-            anomalies.append(
-                {
-                    "type": "Missing Data",
-                    "entity": "telemetry.csv (battery_pct column)",
-                    "note": "Found missing battery percentages. Filled with 0.",
-                }
-            )
-
     # --- 4. VENDING ANOMALIES ---
     if "amount" in vending_df.columns:
         high_amount_mask = vending_df["amount"] >= 100

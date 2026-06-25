@@ -1,4 +1,4 @@
-# Starter (optional)
+<!-- # Starter (optional)
 
 This folder is here to save you boilerplate time. **Using it is entirely optional** — delete
 it and start from scratch if you prefer, in any stack you like.
@@ -25,15 +25,16 @@ your-repo/
 ```
 
 We suggested React/TypeScript + Python or Node, but choose what lets you do your best work in
-the time. Commit as you go.
+the time. Commit as you go. 
 
-# MY WORK HERE
+# MY WORK HERE-->
+### Stack: Angular Frontend + Python Flask
 
 | Git Clone |  | 
 |:----------------------------------------------------|:----------------------------------------------------------------|
 | Download & Install Git |  https://git-scm.com/install/ | 
 | Navigate to the folder in your computer | [cmd] cd <your folder on computer>  | 
-| Clone Repo | [cmd] git clone https://github.com/your_username/your_repo_name.git |
+| Clone Repo | [cmd] git clone https://github.com/fumeng1994/yours_robotics.git |
 
 
 | Setup Project |  | 
@@ -50,7 +51,7 @@ the time. Commit as you go.
 | Activate python virtual environment | [cmd] .venv\Scripts\activate |
 | Install project packages | [cmd] pip install -r requirements.txt |
 | Start Backend | [cmd] python app.py |
-| Detivate python virtual environment | [cmd] deactivate |
+| Deactivate python virtual environment | [cmd] deactivate |
 
 
 | Setup Frontend |  | 
@@ -59,4 +60,4 @@ the time. Commit as you go.
 | Run Angular in frontend dir | [cmd] cd frontend |
 | Install packages | [cmd] npm install | 
 | Start Frontend | [cmd] npm start | 
-| View app on browser at localhost:4200 | | 
+| View app on browser at localhost:4200 | http://localhost:4200 | 
